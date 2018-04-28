@@ -56,12 +56,7 @@ module Codec.MIME.ContentType.Text.Directory
     ) where
 
 import Control.Applicative hiding (many)
-import Data.Time (Day, DiffTime, ParseTime, UTCTime, utctDayTime)
-#if MIN_VERSION_time(1,5,0)
-import Data.Time (TimeLocale, defaultTimeLocale, iso8601DateFormat, parseTimeOrError)
-#else
-import Data.Time (readTime)
-#endif
+import Data.Time (Day, DiffTime, ParseTime, UTCTime, utctDayTime, TimeOfDay, TimeLocale, defaultTimeLocale, iso8601DateFormat, parseTimeOrError)
 import Data.Maybe (fromJust)
 import Text.Regex.PCRE.ByteString.Lazy
 import qualified Codec.Binary.Base64.String as Base64
@@ -70,9 +65,6 @@ import qualified Data.ByteString.Lazy.Char8.Caseless as I
 import qualified Data.Map as Map
 import Control.Monad (liftM, ap)
 import System.IO.Unsafe
-#if !MIN_VERSION_time(1,5,0)
-import System.Locale (TimeLocale, defaultTimeLocale, iso8601DateFormat)
-#endif
 import Prelude -- silence AMP warnings.
 
 -- | A directory is a list of groups of semantically related entities. These
@@ -120,11 +112,11 @@ type URI = B.ByteString
 data Value u = URI URI
              | Text B.ByteString
              | Date Day
-             | Time DiffTime
+             | Time TimeOfDay
              | DateTime UTCTime
              | Integer Integer
              | Boolean Bool
-             | Float Float
+             | Float Double
 -- Decode a list of values as a list of properties, since rfc2425
 -- considers them to be semantically equivalent.
 --           | List (Value u)
@@ -290,12 +282,8 @@ codec f params input =
 -- A few canned parsers for value types defined in rfc2425
 
 -- | time-1.4 compat wrapper.
-parseTime :: ParseTime t => TimeLocale -> String -> String -> t
-#if MIN_VERSION_time(1,5,0)
-parseTime = parseTimeOrError True
-#else
-parseTime = readTime
-#endif
+parseTime :: ParseTime t => String -> String -> t
+parseTime = parseTimeOrError True defaultTimeLocale
 
 pa_URI :: ValueParser u
 pa_URI _ = (:[]) . Text
@@ -306,16 +294,16 @@ pa_text tps = take 1 . pa_textList tps
 
 pa_date :: ValueParser u
 pa_date _ =
-    (:[]) . Date . parseTime defaultTimeLocale (iso8601DateFormat Nothing) . B.unpack
+    (:[]) . Date . parseTime (iso8601DateFormat Nothing) . B.unpack
 
 pa_time :: ValueParser u
 pa_time _ =
-    (:[]) . Time . utctDayTime . parseTime defaultTimeLocale "%T" . B.unpack
+    (:[]) . Time . parseTime "%T" . B.unpack
 
 pa_dateTime :: ValueParser u
 pa_dateTime _ =
     (:[]) . DateTime .
-    parseTime defaultTimeLocale (iso8601DateFormat (Just "T%T")) .
+    parseTime (iso8601DateFormat (Just "T%T")) .
     B.unpack
 
 pa_integer :: ValueParser u

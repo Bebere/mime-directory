@@ -65,6 +65,7 @@ import qualified Data.ByteString.Lazy.Char8.Caseless as I
 import qualified Data.Map as Map
 import Control.Monad (liftM, ap)
 import System.IO.Unsafe
+import qualified Network.URI as URI
 import Prelude -- silence AMP warnings.
 
 -- | A directory is a list of groups of semantically related entities. These
@@ -104,12 +105,10 @@ lookupParameter pname (p:ps)
     | param_name p == pname = Just (param_values p)
     | otherwise = lookupParameter pname ps
 
-type URI = B.ByteString
-
 -- | This is sufficient to represent values whose specification is defined in
 -- RFC 2425. Values with other specifications can be represented via the
 -- 'IANAValue' constructor.
-data Value u = URI URI
+data Value u = URI URI.URI
              | Text B.ByteString
              | Date Day
              | Time TimeOfDay
@@ -286,7 +285,7 @@ parseTime :: ParseTime t => String -> String -> t
 parseTime = parseTimeOrError True defaultTimeLocale
 
 pa_URI :: ValueParser u
-pa_URI _ = (:[]) . Text
+pa_URI _ = (:[]) . URI . fromJust . URI.parseURI . B.unpack
 
 -- | Unescape slashes, newlines and commas.
 pa_text :: ValueParser u
@@ -359,7 +358,7 @@ class PrintValue a where
     printValue :: a -> B.ByteString
 
 instance PrintValue u => PrintValue (Value u) where
-    printValue (URI v) = v
+    printValue (URI v) = B.pack $ URI.uriToString id v ""
     printValue (Text v) = escape "," $ v
     printValue (Date v) = showBS v
     printValue (Time v) = showBS v
